@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: acquire-intel-api
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # We'll add DATABASE_URL in Render UI in the next step

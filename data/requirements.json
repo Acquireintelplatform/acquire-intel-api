@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1765267715716,
+    "name": "Madhus Test",
+    "category": "Casual",
+    "minSqft": 1000,
+    "maxSqft": 2000,
+    "useClass": "e",
+    "preferredLocations": [
+      "London"
+    ],
+    "notes": "Madhus Test",
+    "createdAt": "2025-12-09T08:08:35.716Z"
+  }
+]

@@ -1,0 +1,5 @@
+ALTER TABLE operator_requirement_profiles
+ADD COLUMN IF NOT EXISTS file_name TEXT,
+ADD COLUMN IF NOT EXISTS original_filename TEXT,
+ADD COLUMN IF NOT EXISTS file_size INTEGER,
+ADD COLUMN IF NOT EXISTS mime_type TEXT;

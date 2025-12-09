@@ -1,0 +1,3 @@
+operator_name,min_size_sqft,max_size_sqft,preferred_use_classes,preferred_locations,frontage_min,extraction_required,power_requirement_kw,notes
+Example Coffee,1200,2500,E,London Core,6.0,true,30,seed via csv
+Test Operator 1,800,1800,E,Manchester,5.5,false,20,seed via csv 2
