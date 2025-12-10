@@ -22,54 +22,50 @@ async function create(item) {
     values ($1,$2,$3,$4,$5,$6,$7)
     returning id, name, category, min_sqft, max_sqft, use_class, preferred_locations, notes, created_at;
   `;
-  const vals = [
-    c.name, c.category, c.min_sqft, c.max_sqft, c.use_class, c.preferred_locations, c.notes,
-  ];
-  try {
-    const { rows } = await pool.query(sql, vals);
-    return rows[0];
-  } catch (e) {
-    // >>> TEMP LOGGING SO WE SEE THE REAL ERROR <<<
-    console.error("[DB:create] error:", e.message);
-    console.error("[DB:create] detail:", e.detail || "");
-    console.error("[DB:create] hint:", e.hint || "");
-    console.error("[DB:create] position:", e.position || "");
-    console.error("[DB:create] values:", JSON.stringify(vals));
-    throw e;
-  }
+  const vals = [c.name, c.category, c.min_sqft, c.max_sqft, c.use_class, c.preferred_locations, c.notes];
+  const { rows } = await pool.query(sql, vals);
+  return rows[0];
+}
+
+async function update(id, item) {
+  const c = toCols(item);
+  const sql = `
+    update operator_requirements
+       set name=$1,
+           category=$2,
+           min_sqft=$3,
+           max_sqft=$4,
+           use_class=$5,
+           preferred_locations=$6,
+           notes=$7
+     where id=$8
+     returning id, name, category, min_sqft, max_sqft, use_class, preferred_locations, notes, created_at;
+  `;
+  const vals = [c.name, c.category, c.min_sqft, c.max_sqft, c.use_class, c.preferred_locations, c.notes, id];
+  const { rows } = await pool.query(sql, vals);
+  return rows[0] || null;
 }
 
 async function bulkCreate(items) {
   const out = [];
-  for (const i of items) out.push(await create(i)); // simple loop insert
+  for (const i of items) out.push(await create(i));
   return out;
 }
 
 async function listRecent(n = 20) {
-  try {
-    const { rows } = await pool.query(
-      `select id, name, category, min_sqft, max_sqft, use_class, preferred_locations, notes, created_at
-         from operator_requirements
-         order by created_at desc
-         limit $1`, [n]
-    );
-    return rows;
-  } catch (e) {
-    console.error("[DB:listRecent] error:", e.message);
-    throw e;
-  }
+  const { rows } = await pool.query(
+    `select id, name, category, min_sqft, max_sqft, use_class, preferred_locations, notes, created_at
+       from operator_requirements
+       order by created_at desc
+       limit $1`,
+    [n]
+  );
+  return rows;
 }
 
 async function removeById(id) {
-  try {
-    const { rowCount } = await pool.query(
-      `delete from operator_requirements where id = $1`, [id]
-    );
-    return rowCount > 0;
-  } catch (e) {
-    console.error("[DB:removeById] error:", e.message);
-    throw e;
-  }
+  const { rowCount } = await pool.query(`delete from operator_requirements where id = $1`, [id]);
+  return rowCount > 0;
 }
 
-module.exports = { create, bulkCreate, listRecent, removeById };
+module.exports = { create, update, bulkCreate, listRecent, removeById };
