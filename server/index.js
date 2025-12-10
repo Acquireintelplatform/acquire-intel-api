@@ -5,20 +5,6 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
-app.use(express.json());
-
-// TEMP: simple list so the frontend can load the dropdown
-app.get('/api/operators', (req, res) => {
-  res.json([{ id: 1, name: "Nando's" }]);
-});
-
-// (keep the rest of your routes and export/listen code below as they were)
-
-
-const cors = require('cors');
-
-const app = express();
 
 // ---- Config ----------------------------------------------------
 const PORT = process.env.PORT || 3001;
@@ -43,20 +29,21 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+// ---- TEMP: operators list for dropdown -------------------------
+app.get('/api/operators', (_req, res) => {
+  res.json([{ id: 1, name: "Nando's" }]);
+});
+
 // ---- Routes ----------------------------------------------------
 /**
  * Operator Requirements
  *   GET    /api/operatorRequirements
  *   POST   /api/operatorRequirements
- *   PUT    /api/operatorRequirements/:id   <-- newly wired
- *   DELETE /api/operatorRequirements/:id   (if implemented in router)
+ *   PUT    /api/operatorRequirements/:id
+ *   DELETE /api/operatorRequirements/:id  (if implemented)
  */
 const operatorRequirementsRouter = require('./routes/operatorRequirements');
 app.use('/api/operatorRequirements', operatorRequirementsRouter);
-
-// (If you have other routers, mount them here in the same way)
-// const operatorsRouter = require('./routes/operators');
-// app.use('/api/operators', operatorsRouter);
 
 // ---- Start server (when run directly) --------------------------
 if (require.main === module) {
