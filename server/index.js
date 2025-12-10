@@ -19,8 +19,6 @@ const corsOptions =
 // ---- Middleware -----------------------------------------------
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
-app.use('/api/operatorRequirements', require('./routes/requirementFileRoute'));
-
 
 // ---- Health ----------------------------------------------------
 app.get('/api/health', (_req, res) => {
@@ -37,13 +35,11 @@ app.get('/api/operators', (_req, res) => {
 });
 
 // ---- Routes ----------------------------------------------------
-/**
- * Operator Requirements
- *   GET    /api/operatorRequirements
- *   POST   /api/operatorRequirements
- *   PUT    /api/operatorRequirements/:id
- *   DELETE /api/operatorRequirements/:id  (if implemented)
- */
+// Operator Requirements
+//   GET    /api/operatorRequirements
+//   POST   /api/operatorRequirements
+//   PUT    /api/operatorRequirements/:id
+//   DELETE /api/operatorRequirements/:id  (if implemented)
 const operatorRequirementsRouter = require('./routes/operatorRequirements');
 app.use('/api/operatorRequirements', operatorRequirementsRouter);
 
