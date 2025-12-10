@@ -19,6 +19,8 @@ const corsOptions =
 // ---- Middleware -----------------------------------------------
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
+app.use('/api/operatorRequirements', require('./routes/requirementFileRoute'));
+
 
 // ---- Health ----------------------------------------------------
 app.get('/api/health', (_req, res) => {
