@@ -1,63 +1,55 @@
 // server/index.js
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const morgan = require("morgan");
-const { Client } = require("pg");
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
 
 const app = express();
+
+// ---- Config ----------------------------------------------------
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
-app.use(express.json({ limit: "10mb" }));
-app.use(morgan("dev"));
+// Allow your deployed frontend (or * for local dev)
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const corsOptions =
+  CORS_ORIGIN === '*'
+    ? { origin: true, credentials: true }
+    : { origin: CORS_ORIGIN.split(',').map(s => s.trim()), credentials: true };
 
-// Health + root
-app.get("/", (_req, res) => {
-  res.send("Acquire Intel API Running");
+// ---- Middleware -----------------------------------------------
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '5mb' }));
+
+// ---- Health ----------------------------------------------------
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    base: process.env.VITE_API_BASE || 'local',
+    time: Date.now()
+  });
 });
 
-app.get("/api/health", async (_req, res) => {
-  const out = { ok: true, env: process.env.NODE_ENV || "dev" };
+// ---- Routes ----------------------------------------------------
+/**
+ * Operator Requirements
+ *   GET    /api/operatorRequirements
+ *   POST   /api/operatorRequirements
+ *   PUT    /api/operatorRequirements/:id   <-- newly wired
+ *   DELETE /api/operatorRequirements/:id   (if implemented in router)
+ */
+const operatorRequirementsRouter = require('./routes/operatorRequirements');
+app.use('/api/operatorRequirements', operatorRequirementsRouter);
 
-  if (process.env.DATABASE_URL) {
-    try {
-      const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false },
-      });
-      await client.connect();
-      const r = await client.query("select now() as server_time");
-      out.db = { ok: true, server_time: r.rows[0].server_time };
-      await client.end();
-    } catch (e) {
-      out.db = { ok: false, error: String(e.message || e) };
-    }
-  } else {
-    out.db = { ok: false, error: "DATABASE_URL not set" };
-  }
+// (If you have other routers, mount them here in the same way)
+// const operatorsRouter = require('./routes/operators');
+// app.use('/api/operators', operatorsRouter);
 
-  res.json(out);
-});
+// ---- Start server (when run directly) --------------------------
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`API listening on :${PORT}`);
+  });
+}
 
-// ROUTES (all mounted here)
-app.use(
-  "/api/operatorRequirements",
-  require("./routes/operatorRequirements")
-); // manual add + list
-app.use(
-  "/api/operatorCsvUpload",
-  require("./routes/operatorCsvUpload")
-); // CSV upload
-app.use("/api/operators", require("./routes/operators")); // stub list for dropdown
-
-// Start
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+// Export for tests or serverless adapters
+module.exports = app;
