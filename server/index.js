@@ -5,6 +5,20 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(express.json());
+
+// TEMP: simple list so the frontend can load the dropdown
+app.get('/api/operators', (req, res) => {
+  res.json([{ id: 1, name: "Nando's" }]);
+});
+
+// (keep the rest of your routes and export/listen code below as they were)
+
+
+const cors = require('cors');
+
+const app = express();
 
 // ---- Config ----------------------------------------------------
 const PORT = process.env.PORT || 3001;
