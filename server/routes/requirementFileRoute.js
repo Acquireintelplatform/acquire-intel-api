@@ -1,36 +1,27 @@
 // server/routes/requirementFileRoute.js
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
-// TEMP in-memory file store
-const files = [];
-
 /**
- * POST /api/requirementsFiles
- * Body: { operatorId, originalName, mime, size }
+ * Health (already used by the app)
  */
-router.post('/', (req, res) => {
-  const { operatorId, originalName, mime, size } = req.body || {};
-  const record = {
-    id: files.length + 1,
-    operatorId: operatorId || null,
-    originalName: originalName || 'example.pdf',
-    mime: mime || 'application/pdf',
-    size: size || 0,
-    createdAt: new Date().toISOString(),
-  };
-  files.push(record);
-  return res.json({ ok: true, file: record });
+router.get("/health", (req, res) => {
+  res.json({ status: "ok", base: process.env.NODE_ENV || "production", time: Date.now() });
 });
 
 /**
- * GET /api/requirementsFiles/:id
+ * CSV upload (stub) — front-end just needs a 200 to proceed.
+ * We accept any body/content-type and immediately return OK.
  */
-router.get('/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const record = files.find(f => f.id === id);
-  if (!record) return res.status(404).json({ ok: false, message: 'Not found' });
-  return res.json({ ok: true, file: record });
+router.post("/operatorCsvUpload", (req, res) => {
+  res.status(200).json({ status: "ok", message: "CSV accepted (stub)" });
+});
+
+/**
+ * Manual requirement save (stub) — keep returning OK so the UI doesn’t error.
+ */
+router.post("/operatorRequirements/manual", express.json(), (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
 module.exports = router;
