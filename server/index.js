@@ -23,7 +23,7 @@ app.get("/api/operators", (_req, res) => {
    In-memory Manual Requirements
    ============================ */
 let nextId = 1;
-const manual = []; // { id, createdAt, updatedAt, operatorId?, preferredLocations?, excludedLocations?, ... }
+const manual = []; // { id, createdAt, updatedAt, operatorId?, preferredLocations?, excludedLocations?, title?, notes? }
 
 function toArray(val) {
   if (Array.isArray(val)) return val;
@@ -82,14 +82,15 @@ app.put("/api/operatorRequirements/manual/:id", (req, res) => {
   res.json(updated);
 });
 
-/* MORE FORGIVING DELETE: always 200; {deleted:true|false} */
+/* FORGIVING DELETE: always 200, even on bad/missing id */
 app.delete("/api/operatorRequirements/manual/:id", (req, res) => {
-  const raw = (req.params.id || "").trim();
-  const id = Number(raw);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Bad id" });
-
-  const deleted = deleteOne(id);
-  // Always 200 so the SPA doesn't show "Delete failed" on not found
+  const raw = String(req.params.id ?? "").trim();
+  // Try to parse an integer id; if invalid, treat as not found but still 200
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return res.json({ deleted: false, reason: "bad-id" });
+  }
+  const deleted = deleteOne(parsed);
   res.json({ deleted });
 });
 
@@ -98,12 +99,10 @@ app.delete("/api/operatorRequirements/manual/:id", (req, res) => {
    ============================ */
 const upload = multer({ storage: multer.memoryStorage() });
 
-// GET probe
 app.get("/api/operatorCsvUpload", (_req, res) => {
   res.json({ ok: true, imported: 0 });
 });
 
-// POST (accept CSV; always 200 OK)
 app.post("/api/operatorCsvUpload", upload.any(), (req, res) => {
   try {
     const files = Array.isArray(req.files) ? req.files : [];
