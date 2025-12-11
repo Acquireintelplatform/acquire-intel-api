@@ -81,12 +81,16 @@ app.put("/api/operatorRequirements/manual/:id", (req, res) => {
   if (!updated) return res.status(404).json({ error: "Not found" });
   res.json(updated);
 });
+
+/* MORE FORGIVING DELETE: always 200; {deleted:true|false} */
 app.delete("/api/operatorRequirements/manual/:id", (req, res) => {
-  const id = Number(req.params.id);
+  const raw = (req.params.id || "").trim();
+  const id = Number(raw);
   if (!Number.isFinite(id)) return res.status(400).json({ error: "Bad id" });
-  const ok = deleteOne(id);
-  if (!ok) return res.status(404).json({ error: "Not found" });
-  res.json({ deleted: true });
+
+  const deleted = deleteOne(id);
+  // Always 200 so the SPA doesn't show "Delete failed" on not found
+  res.json({ deleted });
 });
 
 /* ============================
@@ -94,7 +98,7 @@ app.delete("/api/operatorRequirements/manual/:id", (req, res) => {
    ============================ */
 const upload = multer({ storage: multer.memoryStorage() });
 
-// GET probe (so hitting the URL shows OK, not 404)
+// GET probe
 app.get("/api/operatorCsvUpload", (_req, res) => {
   res.json({ ok: true, imported: 0 });
 });
@@ -107,7 +111,6 @@ app.post("/api/operatorCsvUpload", upload.any(), (req, res) => {
       files.find((f) => String(f.mimetype || "").includes("csv")) ||
       files.find((f) => String(f.originalname || "").toLowerCase().endsWith(".csv"));
 
-    // No CSV? (PDF or nothing) → still OK for UX
     if (!csv) return res.json({ ok: true, imported: 0 });
 
     const text = csv.buffer.toString("utf8");
