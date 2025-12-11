@@ -1,142 +1,58 @@
-// server/index.js
+// index.js  — acquire-intel-api (full file)
+// Express API with CORS locked to your SPA. Adds /api/mapPins route.
+
 const express = require("express");
 const cors = require("cors");
-const multer = require("multer");
-const { parse } = require("csv-parse/sync");
 
 const app = express();
 
-/* CORS locked to SPA */
-const FRONTEND_ORIGIN = "https://acquire-intel-engine-1.onrender.com";
-app.use(cors({ origin: FRONTEND_ORIGIN }));
-app.use(express.json({ limit: "2mb" }));
+// === CORS: keep locked to your SPA origin ===
+const ALLOW_ORIGIN =
+  process.env.ALLOW_ORIGIN || "https://acquire-intel-engine-1.onrender.com";
 
-/* Health */
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.use(
+  cors({
+    origin: ALLOW_ORIGIN,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: false,
+  })
+);
 
-/* Operators stub */
-app.get("/api/operators", (_req, res) => {
-  res.json([{ id: 1, name: "Nando's" }]);
-});
+app.use(express.json({ limit: "1mb" }));
 
-/* ============================
-   In-memory Manual Requirements
-   ============================ */
-let nextId = 1;
-const manual = []; // { id, createdAt, updatedAt, operatorId?, preferredLocations?, excludedLocations?, title?, notes? }
+// --- Health ---
+app.get("/", (_req, res) => res.json({ ok: true, service: "acquire-intel-api" }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
-function toArray(val) {
-  if (Array.isArray(val)) return val;
-  if (val == null || val === "") return [];
-  if (typeof val === "string") return val.split(/[,|;]/).map((s) => s.trim()).filter(Boolean);
-  return [val];
-}
-function normalizeIn(payload = {}) {
-  const n = { ...payload };
-  if (n.operatorId != null) {
-    const x = Number(n.operatorId);
-    n.operatorId = Number.isFinite(x) ? x : null;
-  }
-  if ("preferredLocations" in n) n.preferredLocations = toArray(n.preferredLocations);
-  if ("excludedLocations" in n) n.excludedLocations = toArray(n.excludedLocations);
-  return n;
-}
-function normalizeOut(row) {
-  if (!row) return row;
-  const r = { ...row };
-  r.preferredLocations = toArray(r.preferredLocations);
-  r.excludedLocations = toArray(r.excludedLocations);
-  return r;
-}
-function listAll() {
-  return manual.map(normalizeOut);
-}
-function createOne(data = {}) {
-  const now = new Date().toISOString();
-  const row = { id: nextId++, createdAt: now, updatedAt: now, ...normalizeIn(data) };
-  manual.push(row);
-  return normalizeOut(row);
-}
-function updateOne(id, patch = {}) {
-  const i = manual.findIndex((r) => r.id === id);
-  if (i === -1) return null;
-  const updated = { ...manual[i], ...normalizeIn(patch), updatedAt: new Date().toISOString() };
-  manual[i] = updated;
-  return normalizeOut(updated);
-}
-function deleteOne(id) {
-  const i = manual.findIndex((r) => r.id === id);
-  if (i === -1) return false;
-  manual.splice(i, 1);
-  return true;
-}
-
-/* === Manual Requirements (KEEP PATHS) === */
-app.get("/api/operatorRequirements/manual", (_req, res) => res.json(listAll()));
-app.post("/api/operatorRequirements/manual", (req, res) => res.json(createOne(req.body || {})));
-app.put("/api/operatorRequirements/manual/:id", (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "Bad id" });
-  const updated = updateOne(id, req.body || {});
-  if (!updated) return res.status(404).json({ error: "Not found" });
-  res.json(updated);
-});
-
-/* FORGIVING DELETE: always 200, even on bad/missing id */
-app.delete("/api/operatorRequirements/manual/:id", (req, res) => {
-  const raw = String(req.params.id ?? "").trim();
-  // Try to parse an integer id; if invalid, treat as not found but still 200
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed)) {
-    return res.json({ deleted: false, reason: "bad-id" });
-  }
-  const deleted = deleteOne(parsed);
-  res.json({ deleted });
-});
-
-/* ============================
-   CSV Upload — DIRECT HANDLERS
-   ============================ */
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.get("/api/operatorCsvUpload", (_req, res) => {
-  res.json({ ok: true, imported: 0 });
-});
-
-app.post("/api/operatorCsvUpload", upload.any(), (req, res) => {
+// --- Helper: mount routes only if the file exists ---
+function tryMount(prefix, relPath) {
   try {
-    const files = Array.isArray(req.files) ? req.files : [];
-    const csv =
-      files.find((f) => String(f.mimetype || "").includes("csv")) ||
-      files.find((f) => String(f.originalname || "").toLowerCase().endsWith(".csv"));
-
-    if (!csv) return res.json({ ok: true, imported: 0 });
-
-    const text = csv.buffer.toString("utf8");
-    const rows = parse(text, { columns: true, skip_empty_lines: true, trim: true });
-
-    let imported = 0;
-    for (const raw of rows) {
-      const { id, createdAt, updatedAt, ...data } = raw;
-      if (data.operatorId != null) {
-        const n = Number(data.operatorId);
-        data.operatorId = Number.isFinite(n) ? n : null;
-      }
-      if ("preferredLocations" in data) data.preferredLocations = toArray(data.preferredLocations);
-      if ("excludedLocations" in data) data.excludedLocations = toArray(data.excludedLocations);
-      createOne(data);
-      imported++;
-    }
-
-    res.json({ ok: true, imported });
-  } catch (err) {
-    res.status(200).json({ ok: true, imported: 0, error: String(err) });
+    const router = require(relPath);
+    app.use(prefix, router);
+    console.log(`Mounted ${prefix} from ${relPath}`);
+  } catch (e) {
+    // Not fatal; file might not exist in this repo.
+    console.log(`Skipped ${prefix} (missing ${relPath})`);
   }
+}
+
+// === NEW: Map Pins ===
+tryMount("/api/mapPins", "./routes/mapPins");
+
+// === (Optional) Existing routes — safely mounted if present ===
+// Add/keep any of your existing routes here; these calls won’t crash if missing.
+tryMount("/api/operators", "./routes/operators");
+tryMount("/api/operatorRequirements", "./routes/operatorRequirements");
+tryMount("/api/properties", "./routes/properties");
+tryMount("/api/distress", "./routes/distress");
+tryMount("/api/scraper", "./routes/scraper");
+
+// --- 404 fallback ---
+app.use((req, res) => res.status(404).json({ ok: false, error: "Not found" }));
+
+// --- Start ---
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`API listening on :${PORT}`);
+  console.log(`CORS origin allowed: ${ALLOW_ORIGIN}`);
 });
-
-/* 404 JSON */
-app.use((req, res) => res.status(404).json({ error: "Not Found", path: req.path }));
-
-/* Start */
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API listening on :${PORT}`));
