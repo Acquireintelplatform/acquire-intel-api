@@ -1,63 +1,67 @@
 // routes/mapPins.js
+// In-memory pins store (no DB). GET/POST/DELETE.
+
 const express = require("express");
 const router = express.Router();
 
-// In-memory store (no DB, resets on deploy/restart)
-let pins = [];
-let nextId = 1;
+// Single in-memory store (resets on deploy)
+const state = {
+  seq: 1,
+  pins: [
+    // example:
+    // { id: 1, title: "Example", lat: 51.5074, lng: -0.1278, category: "lateFilings", createdAt: 1733870000000 }
+  ],
+};
 
-// Allowed categories
-const CATEGORIES = new Set([
-  "lateFilings",
-  "leaseExpiring",
-  "foodBeverage",
-  "retail",
-  "driveThru",
-  "shoppingMalls",
-  "newProperties",
-]);
+function isNum(n) {
+  return typeof n === "number" && Number.isFinite(n);
+}
 
-// GET all pins
+function sanitizeCategory(c) {
+  const v = String(c || "").trim();
+  // keep open list; but we commonly use:
+  // lateFilings, leaseExpiring, fnb, retail, driveThru, malls, newProps
+  return v || "other";
+}
+
+// GET /api/mapPins
 router.get("/", (_req, res) => {
-  res.json({ ok: true, data: pins });
+  res.json({ ok: true, data: state.pins });
 });
 
-// POST create pin
+// POST /api/mapPins
+// body: { title, lat, lng, category?, meta? }
 router.post("/", (req, res) => {
-  const { title, lat, lng, category } = req.body || {};
-  if (typeof title !== "string" || typeof lat !== "number" || typeof lng !== "number") {
-    return res.status(400).json({ ok: false, error: "Invalid payload" });
+  try {
+    const { title, lat, lng, category, meta } = req.body || {};
+    if (!title || !isNum(lat) || !isNum(lng)) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid payload: need { title, lat, lng }" });
+    }
+    const pin = {
+      id: state.seq++,
+      title: String(title),
+      lat: Number(lat),
+      lng: Number(lng),
+      category: sanitizeCategory(category),
+      meta: meta || null,
+      createdAt: Date.now(),
+    };
+    state.pins.push(pin);
+    return res.json({ ok: true, data: pin });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) });
   }
-  if (!CATEGORIES.has(category)) {
-    return res.status(400).json({ ok: false, error: "Invalid category" });
-  }
-  const pin = { id: nextId++, title, lat, lng, category };
-  pins.unshift(pin);
-  res.json({ ok: true, data: pin });
 });
 
-// PUT update pin
-router.put("/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const idx = pins.findIndex((p) => p.id === id);
-  if (idx === -1) return res.status(404).json({ ok: false, error: "Not found" });
-
-  const { title, lat, lng, category } = req.body || {};
-  if (title !== undefined && typeof title !== "string") return res.status(400).json({ ok: false, error: "Invalid title" });
-  if (lat !== undefined && typeof lat !== "number") return res.status(400).json({ ok: false, error: "Invalid lat" });
-  if (lng !== undefined && typeof lng !== "number") return res.status(400).json({ ok: false, error: "Invalid lng" });
-  if (category !== undefined && !CATEGORIES.has(category)) return res.status(400).json({ ok: false, error: "Invalid category" });
-
-  pins[idx] = { ...pins[idx], ...(title !== undefined ? { title } : {}), ...(lat !== undefined ? { lat } : {}), ...(lng !== undefined ? { lng } : {}), ...(category !== undefined ? { category } : {}) };
-  res.json({ ok: true, data: pins[idx] });
-});
-
-// DELETE pin (404 tolerated as success)
+// DELETE /api/mapPins/:id
 router.delete("/:id", (req, res) => {
   const id = Number(req.params.id);
-  const before = pins.length;
-  pins = pins.filter((p) => p.id !== id);
-  return res.json({ ok: true, deleted: pins.length !== before });
+  const before = state.pins.length;
+  state.pins = state.pins.filter((p) => p.id !== id);
+  const removed = before - state.pins.length;
+  res.json({ ok: true, removed });
 });
 
 module.exports = router;
