@@ -1,67 +1,48 @@
-// routes/mapPins.js
-// In-memory pins store (no DB). GET/POST/DELETE.
+// index.js — acquire-intel-api (FULL FILE)
 
 const express = require("express");
-const router = express.Router();
+const cors = require("cors");
 
-// Single in-memory store (resets on deploy)
-const state = {
-  seq: 1,
-  pins: [
-    // example:
-    // { id: 1, title: "Example", lat: 51.5074, lng: -0.1278, category: "lateFilings", createdAt: 1733870000000 }
-  ],
-};
+const app = express();
 
-function isNum(n) {
-  return typeof n === "number" && Number.isFinite(n);
+// Lock CORS to your SPA
+const ALLOW_ORIGIN =
+  process.env.ALLOW_ORIGIN || "https://acquire-intel-engine-1.onrender.com";
+
+app.use(
+  cors({
+    origin: ALLOW_ORIGIN,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  })
+);
+app.use(express.json({ limit: "1mb" }));
+
+// Health
+app.get("/", (_req, res) => res.json({ ok: true, service: "acquire-intel-api" }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
+// --- MOUNT ROUTES ---
+try {
+  const mapPinsRouter = require("./routes/mapPins");
+  app.use("/api/mapPins", mapPinsRouter);
+  console.log("Mounted /api/mapPins");
+} catch (e) {
+  console.log("Skipped /api/mapPins:", e.message);
 }
 
-function sanitizeCategory(c) {
-  const v = String(c || "").trim();
-  // keep open list; but we commonly use:
-  // lateFilings, leaseExpiring, fnb, retail, driveThru, malls, newProps
-  return v || "other";
+try {
+  const companiesHouseRouter = require("./routes/companiesHouse");
+  app.use("/api/companieshouse", companiesHouseRouter);
+  console.log("Mounted /api/companieshouse");
+} catch (e) {
+  console.log("Skipped /api/companieshouse:", e.message);
 }
 
-// GET /api/mapPins
-router.get("/", (_req, res) => {
-  res.json({ ok: true, data: state.pins });
-});
+// 404
+app.use((req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
-// POST /api/mapPins
-// body: { title, lat, lng, category?, meta? }
-router.post("/", (req, res) => {
-  try {
-    const { title, lat, lng, category, meta } = req.body || {};
-    if (!title || !isNum(lat) || !isNum(lng)) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Invalid payload: need { title, lat, lng }" });
-    }
-    const pin = {
-      id: state.seq++,
-      title: String(title),
-      lat: Number(lat),
-      lng: Number(lng),
-      category: sanitizeCategory(category),
-      meta: meta || null,
-      createdAt: Date.now(),
-    };
-    state.pins.push(pin);
-    return res.json({ ok: true, data: pin });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message || String(e) });
-  }
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`API listening on :${PORT}`);
+  console.log(`CORS origin allowed: ${ALLOW_ORIGIN}`);
 });
-
-// DELETE /api/mapPins/:id
-router.delete("/:id", (req, res) => {
-  const id = Number(req.params.id);
-  const before = state.pins.length;
-  state.pins = state.pins.filter((p) => p.id !== id);
-  const removed = before - state.pins.length;
-  res.json({ ok: true, removed });
-});
-
-module.exports = router;
