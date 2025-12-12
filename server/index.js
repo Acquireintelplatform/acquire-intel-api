@@ -25,8 +25,7 @@ app.get("/", (_req, res) => res.json({ ok: true, service: "acquire-intel-api" })
 app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 // ===== Routes (all in-memory; no DB) =====
-// If a route file is missing, comment its two lines temporarily.
-
+// Map Pins
 try {
   const mapPinsRouter = require("./routes/mapPins");
   app.use("/api/mapPins", mapPinsRouter);
@@ -35,6 +34,7 @@ try {
   console.log("Skipped /api/mapPins (routes/mapPins.js not found)");
 }
 
+// Distress SIC
 try {
   const distressSicRouter = require("./routes/distressSic");
   app.use("/api/distress", distressSicRouter);
@@ -43,6 +43,7 @@ try {
   console.log("Skipped /api/distress (routes/distressSic.js not found)");
 }
 
+// Companies House
 try {
   const companiesHouseRouter = require("./routes/companiesHouse");
   app.use("/api/companieshouse", companiesHouseRouter);
