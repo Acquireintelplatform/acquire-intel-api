@@ -1,48 +1,48 @@
-// index.js — acquire-intel-api (FULL FILE)
+// server/index.js
+// Node + Express (CommonJS)
 
 const express = require("express");
 const cors = require("cors");
 
 const app = express();
-
-// Lock CORS to your SPA
+const PORT = process.env.PORT || 3001;
 const ALLOW_ORIGIN =
   process.env.ALLOW_ORIGIN || "https://acquire-intel-engine-1.onrender.com";
 
 app.use(
   cors({
     origin: ALLOW_ORIGIN,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: false,
   })
 );
-app.use(express.json({ limit: "1mb" }));
 
 // Health
-app.get("/", (_req, res) => res.json({ ok: true, service: "acquire-intel-api" }));
-app.get("/api/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+app.get("/api/health", (_req, res) => {
+  res.json({ ok: true, service: "acquire-intel-api", ts: Date.now() });
+});
 
-// --- MOUNT ROUTES (these must exist) ---
+// Existing routes (best-effort)
 try {
-  const mapPinsRouter = require("./routes/mapPins");
-  app.use("/api/mapPins", mapPinsRouter);
-  console.log("Mounted /api/mapPins");
+  app.use("/api/mapPins", require("./routes/mapPins"));
 } catch (e) {
-  console.log("Skipped /api/mapPins:", e.message);
+  console.warn("[warn] mapPins not mounted:", e?.message);
+}
+try {
+  app.use("/api/companiesHouse", require("./routes/companiesHouse"));
+} catch (e) {
+  console.warn("[warn] companiesHouse not mounted:", e?.message);
 }
 
+// NEW: Operator Requirements
 try {
-  const companiesHouseRouter = require("./routes/companiesHouse");
-  app.use("/api/companieshouse", companiesHouseRouter);
-  console.log("Mounted /api/companieshouse");
+  app.use("/api/operatorRequirements", require("./routes/operatorRequirements"));
 } catch (e) {
-  console.log("Skipped /api/companieshouse:", e.message);
+  console.warn("[warn] operatorRequirements not mounted:", e?.message);
 }
 
 // 404
-app.use((req, res) => res.status(404).json({ ok: false, error: "Not found" }));
+app.use((_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`API listening on :${PORT}`);
-  console.log(`CORS origin allowed: ${ALLOW_ORIGIN}`);
-});
+app.listen(PORT, () =>
+  console.log(`[server] listening on ${PORT} • CORS origin: ${ALLOW_ORIGIN}`)
+);
