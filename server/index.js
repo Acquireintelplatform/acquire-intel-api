@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3001;
 const ALLOW_ORIGIN =
   process.env.ALLOW_ORIGIN || "https://acquire-intel-engine-1.onrender.com";
 
+// CORS
 app.use(
   cors({
     origin: ALLOW_ORIGIN,
@@ -24,23 +25,27 @@ app.get("/api/health", (_req, res) => {
 // Existing routes (best-effort)
 try {
   app.use("/api/mapPins", require("./routes/mapPins"));
+  console.log("[router] mapPins mounted");
 } catch (e) {
   console.warn("[warn] mapPins not mounted:", e?.message);
 }
 try {
   app.use("/api/companiesHouse", require("./routes/companiesHouse"));
+  console.log("[router] companiesHouse mounted");
 } catch (e) {
   console.warn("[warn] companiesHouse not mounted:", e?.message);
 }
 try {
   app.use("/api/operatorRequirements", require("./routes/operatorRequirements"));
+  console.log("[router] operatorRequirements mounted");
 } catch (e) {
   console.warn("[warn] operatorRequirements not mounted:", e?.message);
 }
 
-// NEW: Deal Flow
+// NEW: Deals API
 try {
   app.use("/api/deals", require("./routes/deals"));
+  console.log("[router] deals mounted");
 } catch (e) {
   console.warn("[warn] deals not mounted:", e?.message);
 }
@@ -48,6 +53,7 @@ try {
 // 404
 app.use((_req, res) => res.status(404).json({ ok: false, error: "Not found" }));
 
+// Start
 app.listen(PORT, () =>
   console.log(`[server] listening on ${PORT} • CORS origin: ${ALLOW_ORIGIN}`)
 );
