@@ -1,116 +1,75 @@
 // server/routes/deals.js
-// CRUD for "deals" (opportunities) backed by Postgres
+// Simple Deal Flow API (in-memory store). CommonJS + Express.
 
 const express = require("express");
-const { Pool } = require("pg");
-
 const router = express.Router();
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Render PG usually needs SSL in prod:
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-});
-
-// Ensure table exists
-async function ensureTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS deals (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      stage TEXT,
-      address TEXT,
-      lat DOUBLE PRECISION,
-      lng DOUBLE PRECISION,
-      notes TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-}
-ensureTable().catch((e) => console.error("[deals] ensureTable error:", e));
+// In-memory store (resets on restart)
+const store = { items: [], nextId: 1 };
 
 // Helpers
-const cleanStr = (v) => (typeof v === "string" ? v.trim() : "");
-const cleanNum = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
+const str = (v) => (typeof v === "string" ? v.trim() : "");
+const num = (v) => (v == null || v === "" ? null : Number(v));
 
-// LIST
-router.get("/", async (_req, res) => {
-  try {
-    const r = await pool.query(`SELECT * FROM deals ORDER BY created_at DESC, id DESC;`);
-    res.json({ ok: true, count: r.rowCount, items: r.rows });
-  } catch (e) {
-    console.error("[deals] GET error:", e);
-    res.status(500).json({ ok: false, error: "list_failed" });
-  }
+function normalize(deal) {
+  return {
+    id: deal.id,
+    ts: deal.ts,
+    title: str(deal.title),
+    location: str(deal.location),
+    sizeSqFt: num(deal.sizeSqFt),
+    rentPsf: num(deal.rentPsf),
+    status: str(deal.status) || "new",
+    notes: str(deal.notes),
+  };
+}
+
+// List
+router.get("/", (_req, res) => {
+  res.json({ ok: true, count: store.items.length, items: store.items });
 });
 
-// CREATE
-router.post("/", express.json(), async (req, res) => {
-  try {
-    const { title, stage, address, lat, lng, notes } = req.body || {};
-    const t = cleanStr(title);
-    if (!t) return res.status(400).json({ ok: false, error: "title_required" });
+// Create
+router.post("/", express.json(), (req, res) => {
+  const body = normalize(req.body || {});
+  if (!body.title) return res.status(400).json({ ok: false, error: "title is required" });
 
-    const r = await pool.query(
-      `INSERT INTO deals (title, stage, address, lat, lng, notes)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       RETURNING *;`,
-      [t, cleanStr(stage), cleanStr(address), cleanNum(lat), cleanNum(lng), cleanStr(notes)]
-    );
-    res.status(201).json({ ok: true, item: r.rows[0] });
-  } catch (e) {
-    console.error("[deals] POST error:", e);
-    res.status(500).json({ ok: false, error: "create_failed" });
-  }
+  const item = { ...body, id: store.nextId++, ts: Date.now() };
+  store.items.push(item);
+  res.status(201).json({ ok: true, item });
 });
 
-// UPDATE
-router.put("/:id", express.json(), async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ ok: false, error: "bad_id" });
+// Update
+router.put("/:id", express.json(), (req, res) => {
+  const id = Number(req.params.id);
+  const idx = store.items.findIndex((d) => d.id === id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: "not found" });
 
-    const { title, stage, address, lat, lng, notes } = req.body || {};
-    const r = await pool.query(
-      `UPDATE deals
-       SET title = COALESCE($1, title),
-           stage = COALESCE($2, stage),
-           address = COALESCE($3, address),
-           lat = COALESCE($4, lat),
-           lng = COALESCE($5, lng),
-           notes = COALESCE($6, notes)
-       WHERE id = $7
-       RETURNING *;`,
-      [
-        title !== undefined ? cleanStr(title) : null,
-        stage !== undefined ? cleanStr(stage) : null,
-        address !== undefined ? cleanStr(address) : null,
-        lat !== undefined ? cleanNum(lat) : null,
-        lng !== undefined ? cleanNum(lng) : null,
-        notes !== undefined ? cleanStr(notes) : null,
-        id,
-      ]
-    );
-    if (r.rowCount === 0) return res.status(404).json({ ok: false, error: "not_found" });
-    res.json({ ok: true, item: r.rows[0] });
-  } catch (e) {
-    console.error("[deals] PUT error:", e);
-    res.status(500).json({ ok: false, error: "update_failed" });
-  }
+  const merged = normalize({ ...store.items[idx], ...req.body, id, ts: store.items[idx].ts });
+  store.items[idx] = merged;
+  res.json({ ok: true, item: merged });
 });
 
-// DELETE
-router.delete("/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ ok: false, error: "bad_id" });
-    const r = await pool.query(`DELETE FROM deals WHERE id = $1;`, [id]);
-    if (r.rowCount === 0) return res.status(404).json({ ok: false, error: "not_found" });
-    res.json({ ok: true });
-  } catch (e) {
-    console.error("[deals] DELETE error:", e);
-    res.status(500).json({ ok: false, error: "delete_failed" });
-  }
+// Delete
+router.delete("/:id", (_req, res) => {
+  const id = Number(_req.params.id);
+  const before = store.items.length;
+  store.items = store.items.filter((d) => d.id !== id);
+  const removed = before !== store.items.length;
+  res.status(removed ? 200 : 404).json({ ok: removed });
+});
+
+// Convenience: seed demo data quickly
+router.post("/seed", (_req, res) => {
+  const demo = [
+    { title: "Prime retail – Oxford St", location: "W1", sizeSqFt: 2200, rentPsf: 275, status: "review", notes: "Corner plot" },
+    { title: "Drive-thru pad – A406", location: "North Circular", sizeSqFt: 3000, rentPsf: 45, status: "new" },
+    { title: "F&B shell – Shoreditch", location: "EC2", sizeSqFt: 1800, rentPsf: 120, status: "negotiating" },
+    { title: "Shopping mall kiosk", location: "Westfield", sizeSqFt: 250, rentPsf: 400, status: "hold" },
+    { title: "Unit with extraction – Brixton", location: "SW9", sizeSqFt: 1500, rentPsf: 95, status: "new" },
+  ];
+  demo.forEach((d) => store.items.push({ ...normalize(d), id: store.nextId++, ts: Date.now() }));
+  res.json({ ok: true, inserted: demo.length, count: store.items.length });
 });
 
 module.exports = router;
