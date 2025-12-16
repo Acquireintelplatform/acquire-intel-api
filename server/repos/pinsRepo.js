@@ -1,4 +1,6 @@
 // server/repos/pinsRepo.js
+// Data access for map pins (Postgres)
+
 const { Pool } = require("pg");
 
 const pool = new Pool({
@@ -17,9 +19,7 @@ const CATS = new Set([
 ]);
 
 function validatePin({ title, type, lat, lng }) {
-  if (!title || typeof title !== "string" || !title.trim()) {
-    return "title required";
-  }
+  if (!title || typeof title !== "string" || !title.trim()) return "title required";
   if (!CATS.has(type)) return "invalid type";
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "invalid lat/lng";
   return null;
@@ -32,7 +32,6 @@ async function listAll() {
     ORDER BY created_at DESC, id DESC
   `;
   const { rows } = await pool.query(q);
-  // FE expects { id?, title, type, lat, lng, address }
   return rows.map((r) => ({
     id: r.id,
     title: r.title,
