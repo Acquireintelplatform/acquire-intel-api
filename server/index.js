@@ -16,14 +16,24 @@ app.use(
   })
 );
 
+// ---- DB migrate on boot (safe, idempotent) ----
+try {
+  const { runMigrations } = require("./db/migrate");
+  runMigrations()
+    .then(() => console.log("[db] migrations ok"))
+    .catch((e) => console.error("[db] migrations failed", e));
+} catch (e) {
+  console.warn("[warn] migrate not run:", e?.message);
+}
+
 // Health
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "acquire-intel-api", ts: Date.now() });
 });
 
-// Existing routes (best-effort)
+// Routes
 try {
-  app.use("/api/mapPins", require("./routes/mapPins"));
+  app.use("/api/mapPins", require("./routes/mapPins")); // <-- now Postgres-backed
 } catch (e) {
   console.warn("[warn] mapPins not mounted:", e?.message);
 }
@@ -32,10 +42,11 @@ try {
 } catch (e) {
   console.warn("[warn] companiesHouse not mounted:", e?.message);
 }
-
-// NEW: Operator Requirements
 try {
-  app.use("/api/operatorRequirements", require("./routes/operatorRequirements"));
+  app.use(
+    "/api/operatorRequirements",
+    require("./routes/operatorRequirements")
+  );
 } catch (e) {
   console.warn("[warn] operatorRequirements not mounted:", e?.message);
 }
