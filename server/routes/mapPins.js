@@ -1,5 +1,6 @@
 // server/routes/mapPins.js
 // Express router for map pins (Postgres-backed)
+
 const express = require("express");
 const router = express.Router();
 const { listAll, insertOne, validatePin } = require("../repos/pinsRepo");
