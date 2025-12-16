@@ -16,24 +16,14 @@ app.use(
   })
 );
 
-// Run DB migrations at boot (safe if DATABASE_URL is set)
-try {
-  const { runMigrations } = require("./db/migrate");
-  runMigrations()
-    .then(() => console.log("[db] migrations ok"))
-    .catch((e) => console.error("[db] migrations failed", e));
-} catch (e) {
-  console.warn("[warn] migrate not run:", e?.message);
-}
-
 // Health
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "acquire-intel-api", ts: Date.now() });
 });
 
-// Routes
+// Existing routes (best-effort)
 try {
-  app.use("/api/mapPins", require("./routes/mapPins")); // Postgres-backed
+  app.use("/api/mapPins", require("./routes/mapPins"));
 } catch (e) {
   console.warn("[warn] mapPins not mounted:", e?.message);
 }
@@ -46,6 +36,13 @@ try {
   app.use("/api/operatorRequirements", require("./routes/operatorRequirements"));
 } catch (e) {
   console.warn("[warn] operatorRequirements not mounted:", e?.message);
+}
+
+// NEW: Deal Flow
+try {
+  app.use("/api/deals", require("./routes/deals"));
+} catch (e) {
+  console.warn("[warn] deals not mounted:", e?.message);
 }
 
 // 404
