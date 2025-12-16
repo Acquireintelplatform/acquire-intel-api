@@ -2,12 +2,12 @@
 /**
  * Acquire Intel API
  * - Health
- * - Google Maps pins (demo)
- * - Deal Flow: GET /api/deals, POST /api/deals, POST /api/deals/seed
+ * - Deal Flow: GET /api/deals, POST /api/deals, DELETE /api/deals/:id, POST /api/deals/seed
+ * - Google Maps pins (minimal demo): GET /api/mapPins, POST /api/mapPins/seed
  *
- * Requires env:
+ * Required env on Render:
  *   - DATABASE_URL  (Render Postgres connection string)
- *   - CORS_ORIGIN   (your frontend origin, e.g. https://acquire-intel-engine-1.onrender.com)
+ *   - CORS_ORIGIN   (frontend origin, e.g. https://acquire-intel-engine-1.onrender.com)
  */
 
 const express = require("express");
@@ -62,7 +62,7 @@ async function bootstrap() {
     );
   `);
 
-  // map pins (kept minimal; only for demo seeding)
+  // map pins (demo)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS map_pins (
       id SERIAL PRIMARY KEY,
@@ -130,7 +130,6 @@ app.post("/api/deals", async (req, res) => {
     if (!d.title) {
       return res.status(400).json({ ok: false, error: "Title is required" });
     }
-    // basic stage fallback
     const stage = d.stage || "New";
 
     const insert = await pool.query(
@@ -147,6 +146,27 @@ app.post("/api/deals", async (req, res) => {
     res.json({ ok: true, item: insert.rows[0] });
   } catch (err) {
     console.error("POST /api/deals error:", err);
+    res.status(500).json({ ok: false, error: String(err.message || err) });
+  }
+});
+
+// DELETE delete a deal
+app.delete("/api/deals/:id", async (req, res) => {
+  try {
+    if (!pool) throw new Error("DB not configured");
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ ok: false, error: "Invalid id" });
+    }
+    const { rowCount } = await pool.query("DELETE FROM deals WHERE id = $1", [
+      id,
+    ]);
+    if (rowCount === 0) {
+      return res.status(404).json({ ok: false, error: "Not found" });
+    }
+    return res.json({ ok: true, deletedId: id });
+  } catch (err) {
+    console.error("DELETE /api/deals/:id error:", err);
     res.status(500).json({ ok: false, error: String(err.message || err) });
   }
 });
@@ -249,7 +269,7 @@ app.post("/api/deals/seed", async (_req, res) => {
   }
 });
 
-/* ====== (minimal) MAP PINS endpoints kept so your UI won’t break ====== */
+/* ====== MAP PINS (minimal; just to keep UI happy) ====== */
 
 // GET pins
 app.get("/api/mapPins", async (_req, res) => {
@@ -265,7 +285,7 @@ app.get("/api/mapPins", async (_req, res) => {
   }
 });
 
-// POST seed pins (same demo set used earlier)
+// POST seed pins (demo)
 app.post("/api/mapPins/seed", async (_req, res) => {
   try {
     if (!pool) throw new Error("DB not configured");
