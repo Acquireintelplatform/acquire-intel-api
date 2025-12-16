@@ -1,72 +1,112 @@
 // server/routes/mapPins.js
-// Express router for map pins (Postgres-backed) + quick seed endpoint
-
 const express = require("express");
 const router = express.Router();
-const { listAll, insertOne, validatePin } = require("../repos/pinsRepo");
+const { pool } = require("../db/pool");
 
+// Safe JSON reader
+const s = v => (typeof v === "string" ? v.trim() : "");
+const toCategory = (v) =>
+  ["lateFilings","leaseExpiring","foodBeverage","retail","driveThru","shoppingMalls","newProperties"]
+    .includes(v) ? v : "retail";
+
+// Ensure table exists on module load
+async function ensureTable() {
+  if (!pool) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS map_pins (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL,
+      address TEXT DEFAULT '',
+      lat DOUBLE PRECISION NOT NULL,
+      lng DOUBLE PRECISION NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS map_pins_type_idx ON map_pins(type);
+    CREATE INDEX IF NOT EXISTS map_pins_latlng_idx ON map_pins(lat, lng);
+  `);
+}
+ensureTable().catch(err => console.error("[db] ensureTable error:", err));
+
+// GET /api/mapPins
 router.get("/", async (_req, res) => {
   try {
-    const pins = await listAll();
-    res.json({ ok: true, count: pins.length, pins });
+    if (!pool) return res.json({ ok: true, count: 0, pins: [] });
+    const { rows } = await pool.query(
+      "SELECT id, title, type, address, lat, lng FROM map_pins ORDER BY id DESC LIMIT 1000"
+    );
+    return res.json({ ok: true, count: rows.length, pins: rows });
   } catch (e) {
-    console.error("[mapPins] GET error", e);
-    res.status(500).json({ ok: false, error: "failed to load pins" });
+    console.error("GET /mapPins error", e);
+    return res.status(500).json({ ok: false, error: "db error" });
   }
 });
 
+// POST /api/mapPins
 router.post("/", express.json(), async (req, res) => {
-  const { title, type, lat, lng, address } = req.body || {};
-  const err = validatePin({
-    title,
-    type,
-    lat: Number(lat),
-    lng: Number(lng),
-  });
-  if (err) return res.status(400).json({ ok: false, error: err });
-
   try {
-    const pin = await insertOne({
-      title,
-      type,
+    if (!pool) return res.status(503).json({ ok: false, error: "db not ready" });
+    const { title, type, lat, lng, address } = req.body || {};
+    const clean = {
+      title: s(title),
+      type: toCategory(s(type)),
+      address: s(address),
       lat: Number(lat),
       lng: Number(lng),
-      address: typeof address === "string" ? address : "",
-    });
-    console.log("[mapPins] saved:", pin); // why: confirm writes
-    res.status(201).json({ ok: true, pin });
+    };
+    if (!clean.title) return res.status(400).json({ ok: false, error: "title required" });
+    if (!Number.isFinite(clean.lat) || !Number.isFinite(clean.lng)) {
+      return res.status(400).json({ ok: false, error: "lat/lng required" });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO map_pins (title, type, address, lat, lng)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, title, type, address, lat, lng`,
+      [clean.title, clean.type, clean.address, clean.lat, clean.lng]
+    );
+    return res.status(201).json({ ok: true, pin: rows[0] });
   } catch (e) {
-    console.error("[mapPins] POST error", e);
-    res.status(500).json({ ok: false, error: "failed to save pin" });
+    console.error("POST /mapPins error", e);
+    return res.status(500).json({ ok: false, error: "db error" });
   }
 });
 
-/**
- * QUICK TEST: seed 7 demo pins from the server side (no CORS/FE involved)
- * Usage: GET /api/mapPins/seed-demo
- */
-router.get("/seed-demo", async (_req, res) => {
-  const demo = [
-    { title: "Late filings demo", type: "lateFilings", lat: 51.5107, lng: -0.1167, address: "Strand" },
-    { title: "Lease expiring demo", type: "leaseExpiring", lat: 51.5155, lng: -0.1419, address: "Oxford Circus" },
-    { title: "F&B demo", type: "foodBeverage", lat: 51.509, lng: -0.1337, address: "Piccadilly" },
-    { title: "Retail demo", type: "retail", lat: 51.508, lng: -0.1281, address: "Trafalgar Square" },
-    { title: "Drive-thru demo", type: "driveThru", lat: 51.5009, lng: -0.1246, address: "Westminster" },
-    { title: "Shopping malls demo", type: "shoppingMalls", lat: 51.5136, lng: -0.1586, address: "Marble Arch" },
-    { title: "New properties demo", type: "newProperties", lat: 51.5079, lng: -0.0877, address: "City" }
-  ];
-
+// POST /api/mapPins/seed-demo-set
+router.post("/seed-demo-set", async (_req, res) => {
   try {
-    let inserted = 0;
-    for (const d of demo) {
-      await insertOne(d);
-      inserted += 1;
+    if (!pool) return res.status(503).json({ ok: false, error: "db not ready" });
+
+    const demo = [
+      { title: "Late filings demo",    type: "lateFilings",    lat: 51.5107, lng: -0.1167, address: "Strand" },
+      { title: "Lease expiring demo",  type: "leaseExpiring",  lat: 51.5155, lng: -0.1419, address: "Oxford Circus" },
+      { title: "F&B demo",             type: "foodBeverage",   lat: 51.5090, lng: -0.1337, address: "Piccadilly" },
+      { title: "Retail demo",          type: "retail",         lat: 51.5080, lng: -0.1281, address: "Trafalgar Square" },
+      { title: "Drive-thru demo",      type: "driveThru",      lat: 51.5009, lng: -0.1246, address: "Westminster" },
+      { title: "Shopping malls demo",  type: "shoppingMalls",  lat: 51.5136, lng: -0.1586, address: "Marble Arch" },
+      { title: "New properties demo",  type: "newProperties",  lat: 51.5079, lng: -0.0877, address: "City" },
+    ];
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const d of demo) {
+        await client.query(
+          `INSERT INTO map_pins (title, type, address, lat, lng)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [d.title, d.type, d.address, d.lat, d.lng]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
     }
-    console.log(`[mapPins] seeded ${inserted} demo pins`);
-    res.json({ ok: true, inserted });
+    return res.json({ ok: true, inserted: demo.length });
   } catch (e) {
-    console.error("[mapPins] seed-demo error", e);
-    res.status(500).json({ ok: false, error: "seed failed" });
+    console.error("POST /mapPins/seed-demo-set error", e);
+    return res.status(500).json({ ok: false, error: "db error" });
   }
 });
 
