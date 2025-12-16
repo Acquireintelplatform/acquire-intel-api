@@ -1,35 +1,46 @@
 // server/db/migrate.js
-require("dotenv").config();
-const { Client } = require("pg");
+const { Pool } = require("pg");
 
-const sql = `
-create table if not exists operator_requirements (
-  id                  bigserial primary key,
-  name                text        not null,
-  category            text,
-  min_sqft            integer,
-  max_sqft            integer,
-  use_class           text,
-  preferred_locations text[],     -- array of locations
-  notes               text,
-  created_at          timestamptz not null default now()
+function pool() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL not set");
+  }
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }, // Render Postgres
+  });
+}
+
+const SQL = `
+CREATE SCHEMA IF NOT EXISTS aie;
+
+CREATE TABLE IF NOT EXISTS aie.map_pins (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  type TEXT NOT NULL,
+  lat DOUBLE PRECISION NOT NULL,
+  lng DOUBLE PRECISION NOT NULL,
+  address TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- simple index for map bounds/filters later
+CREATE INDEX IF NOT EXISTS idx_map_pins_type ON aie.map_pins(type);
+CREATE INDEX IF NOT EXISTS idx_map_pins_lat_lng ON aie.map_pins(lat, lng);
 `;
 
-(async () => {
-  const client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
-
+async function runMigrations() {
+  const p = pool();
   try {
-    await client.connect();
-    await client.query(sql);
-    console.log("✅ migration successful: operator_requirements ready");
+    await p.query("BEGIN");
+    await p.query(SQL);
+    await p.query("COMMIT");
   } catch (e) {
-    console.error("❌ migration failed:", e.message);
-    process.exit(1);
+    await p.query("ROLLBACK");
+    throw e;
   } finally {
-    await client.end();
+    await p.end();
   }
-})();
+}
+
+module.exports = { runMigrations };
