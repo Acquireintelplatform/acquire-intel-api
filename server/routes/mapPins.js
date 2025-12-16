@@ -1,37 +1,42 @@
 // server/routes/mapPins.js
+// Express router for map pins (Postgres-backed)
 const express = require("express");
 const router = express.Router();
+const { listAll, insertOne, validatePin } = require("../repos/pinsRepo");
 
-// In-memory store (lives while server process runs)
-const pins = [];
-const makeId = () => Math.random().toString(36).slice(2, 10);
-
-// List all pins
-router.get("/", (req, res) => {
-  res.json({ ok: true, count: pins.length, pins });
+router.get("/", async (_req, res) => {
+  try {
+    const pins = await listAll();
+    res.json({ ok: true, count: pins.length, pins });
+  } catch (e) {
+    console.error("[mapPins] GET error", e);
+    res.status(500).json({ ok: false, error: "failed to load pins" });
+  }
 });
 
-// Add a pin
-router.post("/", (req, res) => {
-  const { type, lat, lng, title, address, meta } = req.body || {};
-  if (!type) return res.status(400).json({ ok: false, error: "type required" });
-  if (typeof lat !== "number" || typeof lng !== "number") {
-    return res.status(400).json({ ok: false, error: "lat/lng must be numbers" });
-  }
-
-  const pin = {
-    id: makeId(),
+router.post("/", express.json(), async (req, res) => {
+  const { title, type, lat, lng, address } = req.body || {};
+  const err = validatePin({
+    title,
     type,
-    lat,
-    lng,
-    title: title || "",
-    address: address || "",
-    meta: meta || {},
-    createdAt: new Date().toISOString(),
-  };
+    lat: Number(lat),
+    lng: Number(lng),
+  });
+  if (err) return res.status(400).json({ ok: false, error: err });
 
-  pins.push(pin);
-  res.json({ ok: true, pin });
+  try {
+    const pin = await insertOne({
+      title,
+      type,
+      lat: Number(lat),
+      lng: Number(lng),
+      address: typeof address === "string" ? address : "",
+    });
+    res.status(201).json({ ok: true, pin });
+  } catch (e) {
+    console.error("[mapPins] POST error", e);
+    res.status(500).json({ ok: false, error: "failed to save pin" });
+  }
 });
 
 module.exports = router;
