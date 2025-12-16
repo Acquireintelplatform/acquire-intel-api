@@ -16,7 +16,7 @@ app.use(
   })
 );
 
-// ---- DB migrate on boot (safe, idempotent) ----
+// Run DB migrations at boot (safe if DATABASE_URL is set)
 try {
   const { runMigrations } = require("./db/migrate");
   runMigrations()
@@ -33,7 +33,7 @@ app.get("/api/health", (_req, res) => {
 
 // Routes
 try {
-  app.use("/api/mapPins", require("./routes/mapPins")); // <-- now Postgres-backed
+  app.use("/api/mapPins", require("./routes/mapPins")); // Postgres-backed
 } catch (e) {
   console.warn("[warn] mapPins not mounted:", e?.message);
 }
@@ -43,10 +43,7 @@ try {
   console.warn("[warn] companiesHouse not mounted:", e?.message);
 }
 try {
-  app.use(
-    "/api/operatorRequirements",
-    require("./routes/operatorRequirements")
-  );
+  app.use("/api/operatorRequirements", require("./routes/operatorRequirements"));
 } catch (e) {
   console.warn("[warn] operatorRequirements not mounted:", e?.message);
 }
