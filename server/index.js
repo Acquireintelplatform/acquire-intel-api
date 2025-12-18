@@ -4,7 +4,7 @@
 //------------------------------------------------
 const express = require("express");
 const cors = require("cors");
-const pool = require("./db"); // make sure ./db.js exists in the same folder
+const pool = require("./db/pool"); // ✅ FIXED PATH
 
 const app = express();
 app.use(cors());
