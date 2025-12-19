@@ -10,7 +10,7 @@ const pool = require("../db/pool");
 router.get("/operatorRequirements", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, operator_id AS "operatorId", name, sector, preferred_locations AS "preferredLocations",
+      `SELECT id, name, sector, preferred_locations AS "preferredLocations",
               size_sqm AS "sizeSqm", notes, created_at AS "createdAt"
        FROM operator_requirements
        ORDER BY id DESC`
@@ -22,7 +22,7 @@ router.get("/operatorRequirements", async (req, res) => {
   }
 });
 
-// ✅ POST add new operator requirement
+// ✅ POST create new operator requirement
 router.post("/operatorRequirements", async (req, res) => {
   try {
     const { name, sector, preferredLocation, sizeSqm, notes } = req.body;
@@ -45,11 +45,11 @@ router.post("/operatorRequirements", async (req, res) => {
   }
 });
 
-// ✅ DELETE requirement
+// ✅ DELETE operator requirement
 router.delete("/operatorRequirements/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query("DELETE FROM operator_requirements WHERE id=$1", [id]);
+    await pool.query("DELETE FROM operator_requirements WHERE id = $1", [id]);
     res.json({ ok: true });
   } catch (err) {
     console.error("DELETE /api/operatorRequirements/:id error", err);
