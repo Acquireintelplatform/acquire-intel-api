@@ -1,6 +1,6 @@
 // server/db/migrate.js
 //-------------------------------------------------------------
-// Database Migration Script (ensures all columns exist)
+// Reliable PostgreSQL Migration Manager
 //-------------------------------------------------------------
 const pool = require("./pool");
 
@@ -8,7 +8,7 @@ async function runMigrations() {
   console.log("🚀 Running Acquire Intel DB migrations...");
 
   try {
-    // Create table if not exists
+    // ✅ Ensure table exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS operator_requirements (
         id SERIAL PRIMARY KEY,
@@ -16,38 +16,34 @@ async function runMigrations() {
         sector TEXT,
         preferred_locations TEXT[],
         size_range TEXT,
+        size_sqm TEXT,
         notes TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
 
-    // Add missing columns safely (if they don’t already exist)
-    await pool.query(`
-      DO $$ 
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name='sector') THEN
-          ALTER TABLE operator_requirements ADD COLUMN sector TEXT;
-        END IF;
+    // ✅ Add missing columns safely
+    const addColumnIfMissing = async (columnName, columnType) => {
+      const result = await pool.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name=$1`,
+        [columnName]
+      );
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name='name') THEN
-          ALTER TABLE operator_requirements ADD COLUMN name TEXT;
-        END IF;
+      if (result.rowCount === 0) {
+        console.log(`🛠️ Adding missing column: ${columnName}`);
+        await pool.query(`ALTER TABLE operator_requirements ADD COLUMN ${columnName} ${columnType};`);
+      }
+    };
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name='preferred_locations') THEN
-          ALTER TABLE operator_requirements ADD COLUMN preferred_locations TEXT[];
-        END IF;
+    await addColumnIfMissing("name", "TEXT");
+    await addColumnIfMissing("sector", "TEXT");
+    await addColumnIfMissing("preferred_locations", "TEXT[]");
+    await addColumnIfMissing("size_range", "TEXT");
+    await addColumnIfMissing("size_sqm", "TEXT");
+    await addColumnIfMissing("notes", "TEXT");
+    await addColumnIfMissing("created_at", "TIMESTAMPTZ DEFAULT NOW()");
 
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name='size_range') THEN
-          ALTER TABLE operator_requirements ADD COLUMN size_range TEXT;
-        END IF;
-
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='operator_requirements' AND column_name='notes') THEN
-          ALTER TABLE operator_requirements ADD COLUMN notes TEXT;
-        END IF;
-      END $$;
-    `);
-
-    console.log("✅ Migration complete");
+    console.log("✅ All migrations complete");
   } catch (err) {
     console.error("❌ Migration error:", err.message);
   }
