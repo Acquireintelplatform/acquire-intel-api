@@ -1,16 +1,23 @@
 // server/db/pool.js
+//-------------------------------------------------------------
+// PostgreSQL Database Connection
+//-------------------------------------------------------------
 const { Pool } = require("pg");
 
-const conn = process.env.DATABASE_URL;
-if (!conn) {
-  console.warn("[db] DATABASE_URL is not set – routes will no-op.");
-}
+// ✅ Connection settings
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false, // Required for Render-hosted Postgres
+  },
+});
 
-const pool = conn
-  ? new Pool({
-      connectionString: conn,
-      ssl: { rejectUnauthorized: false }, // Render Postgres requires SSL
-    })
-  : null;
+// ✅ Quick test (optional)
+pool.connect()
+  .then(client => {
+    console.log("✅ Connected to PostgreSQL database");
+    client.release();
+  })
+  .catch(err => console.error("❌ PostgreSQL connection error", err));
 
-module.exports = { pool };
+module.exports = pool;
