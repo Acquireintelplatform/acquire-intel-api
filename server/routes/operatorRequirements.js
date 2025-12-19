@@ -1,36 +1,41 @@
 // server/routes/operatorRequirements.js
 //-------------------------------------------------------------
-// Operator Requirements Routes (CRUD + JSON only)
+// Operator Requirements API Routes
 //-------------------------------------------------------------
 const express = require("express");
 const router = express.Router();
 const pool = require("../db/pool");
 
-//-------------------------------------------------------------
-// GET all operator requirements
-//-------------------------------------------------------------
+// ✅ GET all operator requirements
 router.get("/operatorRequirements", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM operator_requirements ORDER BY id DESC");
-    res.json({ ok: true, count: result.rowCount, items: result.rows });
+    const result = await pool.query(
+      `SELECT id, operator_id AS "operatorId", name, sector, preferred_locations AS "preferredLocations",
+              size_sqm AS "sizeSqm", notes, created_at AS "createdAt"
+       FROM operator_requirements
+       ORDER BY id DESC`
+    );
+    res.json({ ok: true, count: result.rows.length, items: result.rows });
   } catch (err) {
     console.error("GET /api/operatorRequirements error", err);
     res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-//-------------------------------------------------------------
-// POST create new requirement
-//-------------------------------------------------------------
+// ✅ POST add new operator requirement
 router.post("/operatorRequirements", async (req, res) => {
   try {
-    const { operator_name, sector, locations, size_sqft, notes } = req.body;
+    const { name, sector, preferredLocation, sizeSqm, notes } = req.body;
+
+    if (!name || !sector) {
+      return res.status(400).json({ ok: false, error: "Missing required fields" });
+    }
 
     const result = await pool.query(
-      `INSERT INTO operator_requirements (operator_name, sector, locations, size_sqft, notes)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [operator_name, sector, locations, size_sqft, notes]
+      `INSERT INTO operator_requirements (name, sector, preferred_locations, size_sqm, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING id, name, sector, preferred_locations AS "preferredLocations", size_sqm AS "sizeSqm", notes, created_at AS "createdAt"`,
+      [name, sector, preferredLocation || null, sizeSqm || null, notes || null]
     );
 
     res.json({ ok: true, item: result.rows[0] });
@@ -40,31 +45,7 @@ router.post("/operatorRequirements", async (req, res) => {
   }
 });
 
-//-------------------------------------------------------------
-// PUT update existing requirement
-//-------------------------------------------------------------
-router.put("/operatorRequirements/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { operator_name, sector, locations, size_sqft, notes } = req.body;
-
-    const result = await pool.query(
-      `UPDATE operator_requirements
-       SET operator_name=$1, sector=$2, locations=$3, size_sqft=$4, notes=$5, updated_at=NOW()
-       WHERE id=$6 RETURNING *`,
-      [operator_name, sector, locations, size_sqft, notes, id]
-    );
-
-    res.json({ ok: true, item: result.rows[0] });
-  } catch (err) {
-    console.error("PUT /api/operatorRequirements/:id error", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-//-------------------------------------------------------------
-// DELETE a requirement
-//-------------------------------------------------------------
+// ✅ DELETE requirement
 router.delete("/operatorRequirements/:id", async (req, res) => {
   try {
     const { id } = req.params;
