@@ -1,17 +1,14 @@
 // server/db/migrate.js
 //-------------------------------------------------------------
-// Acquire Intel — Database Migration Script
-// Ensures all required tables exist
+// Acquire Intel — Database Migration Script (Safe Mode)
 //-------------------------------------------------------------
 const pool = require("./pool");
 
-(async () => {
+async function runMigrations() {
   try {
     console.log("🚀 Running Acquire Intel DB migrations...");
 
-    //-------------------------------------------------------------
     // DEALS TABLE
-    //-------------------------------------------------------------
     await pool.query(`
       CREATE TABLE IF NOT EXISTS deals (
         id SERIAL PRIMARY KEY,
@@ -26,9 +23,7 @@ const pool = require("./pool");
     `);
     console.log("✅ deals table ready");
 
-    //-------------------------------------------------------------
     // OPERATOR REQUIREMENTS TABLE
-    //-------------------------------------------------------------
     await pool.query(`
       CREATE TABLE IF NOT EXISTS operator_requirements (
         id SERIAL PRIMARY KEY,
@@ -42,9 +37,7 @@ const pool = require("./pool");
     `);
     console.log("✅ operator_requirements table ready");
 
-    //-------------------------------------------------------------
-    // OPTIONAL FUTURE TABLES
-    //-------------------------------------------------------------
+    // DISTRESS SIGNALS TABLE
     await pool.query(`
       CREATE TABLE IF NOT EXISTS distress_signals (
         id SERIAL PRIMARY KEY,
@@ -58,13 +51,17 @@ const pool = require("./pool");
     `);
     console.log("✅ distress_signals table ready");
 
-    //-------------------------------------------------------------
-    // Done
-    //-------------------------------------------------------------
     console.log("🎯 All tables verified successfully");
-    process.exit(0);
   } catch (err) {
-    console.error("❌ Migration error:", err);
-    process.exit(1);
+    console.error("❌ Migration error:", err.message);
+  } finally {
+    pool.end();
   }
-})();
+}
+
+// Run when executed directly
+if (require.main === module) {
+  runMigrations();
+}
+
+module.exports = runMigrations;
