@@ -1,47 +1,70 @@
 // server/db/migrate.js
-// Safe, idempotent migrations for Render Postgres.
+//-------------------------------------------------------------
+// Acquire Intel — Database Migration Script
+// Ensures all required tables exist
+//-------------------------------------------------------------
+const pool = require("./pool");
 
-const { Pool } = require("pg");
-
-function getPool() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL not set");
-  }
-  return new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }, // Render PG
-  });
-}
-
-const SQL = `
-CREATE SCHEMA IF NOT EXISTS aie;
-
-CREATE TABLE IF NOT EXISTS aie.map_pins (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  type TEXT NOT NULL,
-  lat DOUBLE PRECISION NOT NULL,
-  lng DOUBLE PRECISION NOT NULL,
-  address TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_map_pins_type ON aie.map_pins(type);
-CREATE INDEX IF NOT EXISTS idx_map_pins_lat_lng ON aie.map_pins(lat, lng);
-`;
-
-async function runMigrations() {
-  const pool = getPool();
+(async () => {
   try {
-    await pool.query("BEGIN");
-    await pool.query(SQL);
-    await pool.query("COMMIT");
-  } catch (err) {
-    await pool.query("ROLLBACK");
-    throw err;
-  } finally {
-    await pool.end();
-  }
-}
+    console.log("🚀 Running Acquire Intel DB migrations...");
 
-module.exports = { runMigrations };
+    //-------------------------------------------------------------
+    // DEALS TABLE
+    //-------------------------------------------------------------
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS deals (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        stage TEXT,
+        value_gbp NUMERIC,
+        sector TEXT,
+        location TEXT,
+        notes TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log("✅ deals table ready");
+
+    //-------------------------------------------------------------
+    // OPERATOR REQUIREMENTS TABLE
+    //-------------------------------------------------------------
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS operator_requirements (
+        id SERIAL PRIMARY KEY,
+        operator_name TEXT NOT NULL,
+        sector TEXT,
+        locations TEXT,
+        size_sqft TEXT,
+        notes TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log("✅ operator_requirements table ready");
+
+    //-------------------------------------------------------------
+    // OPTIONAL FUTURE TABLES
+    //-------------------------------------------------------------
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS distress_signals (
+        id SERIAL PRIMARY KEY,
+        company_name TEXT,
+        filing_type TEXT,
+        signal_date DATE,
+        risk_level TEXT,
+        source TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log("✅ distress_signals table ready");
+
+    //-------------------------------------------------------------
+    // Done
+    //-------------------------------------------------------------
+    console.log("🎯 All tables verified successfully");
+    process.exit(0);
+  } catch (err) {
+    console.error("❌ Migration error:", err);
+    process.exit(1);
+  }
+})();
