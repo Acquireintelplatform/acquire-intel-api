@@ -1,67 +1,53 @@
 // server/db/migrate.js
 //-------------------------------------------------------------
-// Acquire Intel — Database Migration Script (Safe Mode)
+// Acquire Intel — Database Migration Script
 //-------------------------------------------------------------
-const pool = require("./pool");
+const pool = require("./pool"); // ✅ Import the actual pool instance
 
 async function runMigrations() {
-  try {
-    console.log("🚀 Running Acquire Intel DB migrations...");
+  console.log("🚀 Running Acquire Intel DB migrations...");
 
-    // DEALS TABLE
+  try {
+    // Create deals table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS deals (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
-        stage TEXT,
-        value_gbp NUMERIC,
-        sector TEXT,
-        location TEXT,
-        notes TEXT,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        stage TEXT NOT NULL,
+        value_gbp NUMERIC NULL,
+        sector TEXT NULL,
+        location TEXT NULL,
+        notes TEXT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-    console.log("✅ deals table ready");
 
-    // OPERATOR REQUIREMENTS TABLE
+    // Create operator_requirements table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS operator_requirements (
         id SERIAL PRIMARY KEY,
-        operator_name TEXT NOT NULL,
+        operator_name TEXT,
         sector TEXT,
         locations TEXT,
         size_sqft TEXT,
         notes TEXT,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-    console.log("✅ operator_requirements table ready");
 
-    // DISTRESS SIGNALS TABLE
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS distress_signals (
-        id SERIAL PRIMARY KEY,
-        company_name TEXT,
-        filing_type TEXT,
-        signal_date DATE,
-        risk_level TEXT,
-        source TEXT,
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    console.log("✅ distress_signals table ready");
-
-    console.log("🎯 All tables verified successfully");
+    console.log("✅ Migrations completed successfully.");
   } catch (err) {
     console.error("❌ Migration error:", err.message);
   } finally {
-    pool.end();
+    // ✅ Cleanly end pool only if it exists
+    if (pool && typeof pool.end === "function") {
+      await pool.end();
+    }
   }
 }
 
-// Run when executed directly
 if (require.main === module) {
-  runMigrations();
+  runMigrations().then(() => process.exit(0));
 }
 
 module.exports = runMigrations;
