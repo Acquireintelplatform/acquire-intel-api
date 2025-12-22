@@ -1,29 +1,28 @@
 // api/operatorRequirements.js
 const express = require("express");
 const router = express.Router();
-const pool = require("../db/pool"); // Connect to PostgreSQL
+const pool = require("../db/pool");
 
 //-------------------------------------------------------------
 // GET all operator requirements
 //-------------------------------------------------------------
 router.get("/operatorRequirements/manual", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT id, name, operator_id, sector, preferred_locations, size_sqm, notes, created_at 
-       FROM operator_requirements 
-       ORDER BY id DESC`
-    );
+    const result = await pool.query(`
+      SELECT id, operator, sector, locations, size_sqft, notes, created_at
+      FROM operator_requirements
+      ORDER BY id DESC
+    `);
 
     res.json({
       ok: true,
       count: result.rowCount,
       items: result.rows.map((r) => ({
         id: r.id,
-        name: r.name,
-        operatorId: r.operator_id,
+        operator: r.operator,
         sector: r.sector,
-        preferredLocations: r.preferred_locations,
-        sizeSqm: r.size_sqm,
+        locations: r.locations,
+        sizeSqft: r.size_sqft,
         notes: r.notes,
         createdAt: r.created_at,
         ts: new Date(r.created_at).getTime(),
@@ -36,29 +35,22 @@ router.get("/operatorRequirements/manual", async (req, res) => {
 });
 
 //-------------------------------------------------------------
-// POST — Add a new operator requirement
+// POST — Add new operator requirement
 //-------------------------------------------------------------
 router.post("/operatorRequirements/manual", async (req, res) => {
   try {
-    const { name, operatorId, sector, preferredLocations, sizeSqm, notes } = req.body;
+    const { operator, sector, locations, sizeSqft, notes } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ ok: false, error: "Name is required" });
+    if (!operator || !operator.trim()) {
+      return res.status(400).json({ ok: false, error: "Operator is required" });
     }
 
     const result = await pool.query(
       `INSERT INTO operator_requirements 
-        (name, operator_id, sector, preferred_locations, size_sqm, notes, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
-       RETURNING id, name, operator_id, sector, preferred_locations, size_sqm, notes, created_at`,
-      [
-        name.trim(),
-        operatorId || null,
-        sector || null,
-        preferredLocations || null,
-        sizeSqm || null,
-        notes || null,
-      ]
+       (operator, sector, locations, size_sqft, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING id, operator, sector, locations, size_sqft, notes, created_at`,
+      [operator.trim(), sector || null, locations || null, sizeSqft || null, notes || null]
     );
 
     res.json({
