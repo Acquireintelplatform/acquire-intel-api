@@ -1,7 +1,7 @@
 // api/operatorRequirements.js
 const express = require("express");
 const router = express.Router();
-const pool = require("../db/pool"); // ✅ Connects to Postgres
+const pool = require("../db/pool"); // Connect to PostgreSQL
 
 //-------------------------------------------------------------
 // GET all operator requirements
@@ -36,21 +36,29 @@ router.get("/operatorRequirements/manual", async (req, res) => {
 });
 
 //-------------------------------------------------------------
-// POST — Create a new operator requirement
+// POST — Add a new operator requirement
 //-------------------------------------------------------------
 router.post("/operatorRequirements/manual", async (req, res) => {
   try {
-    const { name, operatorId, preferredLocations, notes } = req.body;
+    const { name, operatorId, sector, preferredLocations, sizeSqm, notes } = req.body;
 
     if (!name || !name.trim()) {
       return res.status(400).json({ ok: false, error: "Name is required" });
     }
 
     const result = await pool.query(
-      `INSERT INTO operator_requirements (name, operator_id, preferred_locations, notes, created_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       RETURNING id, name, operator_id, preferred_locations, notes, created_at`,
-      [name.trim(), operatorId || null, preferredLocations || null, notes || null]
+      `INSERT INTO operator_requirements 
+        (name, operator_id, sector, preferred_locations, size_sqm, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       RETURNING id, name, operator_id, sector, preferred_locations, size_sqm, notes, created_at`,
+      [
+        name.trim(),
+        operatorId || null,
+        sector || null,
+        preferredLocations || null,
+        sizeSqm || null,
+        notes || null,
+      ]
     );
 
     res.json({
